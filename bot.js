@@ -135,9 +135,19 @@ async function processMsg(message) {
         case 19:
             const repliedToMsgIds = message.reference
             if (repliedToMsgIds.channelId !== welcomeChannelId) break;
-            const repliedToMsg = await message.channel.messages.fetch(repliedToMsgIds.messageId);
-            if (!repliedToMsg) break;
-            if (!repliedToMsg.stickers) break;
+            let repliedToMsg;
+            try {
+                repliedToMsg = await message.channel.messages.fetch(repliedToMsgIds.messageId);
+            } catch {
+                // Replied to message doesn't exist,
+                await ProcessedMessages.create({messageId: message.id});
+                break;
+            }
+            // No stickers in reply (doesn't count)
+            if (!repliedToMsg.stickers) {
+                await ProcessedMessages.create({messageId: message.id});
+                break;
+            }
 
             await database.transaction(async (t) => {
                 await JoinMessages.upsert( {
