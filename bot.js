@@ -47,13 +47,36 @@ client.on(Events.InteractionCreate, async interaction => {
             case "welcome":
                 await interaction.reply({content: "Getting links (this may take a while)...", ephemeral: true});
                 await checkChannel();
-                const messageIds = await JoinMessages.findAll({
+                const messageIdsQuery = await JoinMessages.findAll({
                     where: {welcomed: false},
                     attributes: ['messageId'],
                     order: [['messageId', 'DESC']],
                     limit: 20
                 });
-                const links = messageIds.map(x => messageLinkFormat + x.messageId);
+                // Verify each message hasn't been deleted yet
+                const messageIds = messageIdsQuery.map(x => x.messageId);
+                let welcomeChannel = client.channels.cache.get(welcomeChannelId);
+                for (let i = 0; i < messageIds.length; i++) {
+                    const messageId = messageIds[i];
+                    try {
+                        await welcomeChannel.messages.fetch(messageId);
+                    } catch {
+                        messageIds.splice(i, 1);
+                        await JoinMessages.destroy({
+                            where: {
+                                messageId: messageId
+                            }
+                        });
+                        await ProcessedMessages.destroy({
+                            where: {
+                                messageId: messageId
+                            }
+                        });
+                        i--;
+                    }
+                }
+
+                const links = messageIds.map(x => messageLinkFormat + x);
                 links.reverse();
                 const message = "Your links:\n" + links.join('\n');
                 await interaction.editReply(message);
